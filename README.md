@@ -1,2 +1,2 @@
-# linux-commands
-linux commands
+# usefull-commands
+linux and windows commands
