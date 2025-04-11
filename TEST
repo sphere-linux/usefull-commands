@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Variables
+VM_ID=100                # Unique ID for the VM
+VM_NAME="debian12-vm"    # Name of the VM
+ISO_PATH="/var/lib/vz/template/iso/debian-12.iso" # Path to the Debian 12 ISO
+STORAGE="local-lvm"      # Storage pool for the VM
+DISK_SIZE="32G"          # Disk size
+MEMORY="2048"            # Memory size in MB
+CORES="2"                # Number of CPU cores
+BRIDGE="vmbr0"           # Network bridge
+VLAN_TAGGED="200;300"    # Tagged VLANs
+VLAN_UNTAGGED="100"      # Untagged VLAN
+
+# Create the VM
+qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CORES --net0 virtio,bridge=$BRIDGE,tag=$VLAN_UNTAGGED
+
+# Add a disk to the VM
+qm set $VM_ID --scsihw virtio-scsi-pci --scsi0 $STORAGE:$DISK_SIZE
+
+# Add the ISO as a CD-ROM
+qm set $VM_ID --ide2 $STORAGE:iso/$ISO_PATH,media=cdrom
+
+# Set the boot device to the CD-ROM
+qm set $VM_ID --boot order=ide2
+
+# Configure VLANs on the bridge
+echo "Configuring VLANs on bridge $BRIDGE..."
+cat <<EOF >> /etc/network/interfaces
+
+# VLAN configuration for $BRIDGE
+auto $BRIDGE
+iface $BRIDGE inet manual
+    bridge-ports eno1
+    bridge-stp off
+    bridge-fd 0
+    bridge-vlan-aware yes
+    bridge-vids $VLAN_UNTAGGED $VLAN_TAGGED
+EOF
+
+# Restart networking to apply changes
+systemctl restart networking
+
+# Start the VM
+qm start $VM_ID
+
+echo "Virtual machine $VM_NAME (ID: $VM_ID) has been created and started."
